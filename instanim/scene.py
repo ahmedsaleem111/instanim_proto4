@@ -20,9 +20,17 @@ class Scene:
         self.backgroundColor = backgroundColor
         self.backgroundAlpha = backgroundAlpha
 
+    def __iter__(self):
+        self.frame = 0
+        self.buffer = {} # will hold entities (by name only) to draw in current frame
+    
+    def __next__(self):
+        if self.frame == self.frames:
+            for ent in self.entities: 
+                assert isinstance(ent, entity)                
+                ent.reset() 
+            raise StopIteration
 
-    # will return a cairo ImageSurface object
-    def frame(self, frame): # frame must be integer >= 0 and <= frames
         surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.width, self.height)
 
         context = cairo.Context(surf)    
@@ -31,11 +39,18 @@ class Scene:
 
         for ent in self.entities:
             assert isinstance(ent, entity)
-            ent.interpolate(frame) # interpolate between keyFrames
-            ent.draw(context)
 
+            if self.frame == ent.startFrame: # add to buffer once start frame is reached
+                iter(ent)
+                self.buffer[ent.name] = None # value doesn't matter (place-holder) 
+            if ent.name in self.buffer:
+                try: 
+                    pars = next(ent) # may remove pars in the future...
+                    ent.draw(context)
+                except StopIteration: del self.buffer[ent.name] # remove from buffer once have covered complete duration
+
+        self.frame += 1
         return surf
-
 
 
     async def a_preview(self, fileName, fps=30, override=False):
@@ -43,10 +58,10 @@ class Scene:
         else: pth_ = instanim_dir+r"/exports/clips/" + fileName
 
         frame_tasks = list()
-        length = len(t)
-        for frameNumber in range(self.frames):
+        length = self.frames # right? verify...
+        for surf in self:
 
-            task = asyncio.create_task(pre_proc_frame(i, self.frame(frameNumber), length))
+            task = asyncio.create_task(pre_proc_frame(i, surf, length))
             frame_tasks.append(task)
             task.add_done_callback(frame_tasks.remove)
 

@@ -56,6 +56,8 @@ class entity:
         self.keyFramesFrames = {} # frames only
         self.keyFramesCount = {} # current count of keyFrames
 
+    def reset(self):
+        for par in self.pars: setattr(self, par, self.keyFrames[par]['0']) # resetting to initial values                 
 
 
     def addKeyFrames(self, *keyFrames):
@@ -86,7 +88,10 @@ class entity:
 
 
     def __next__(self):
-        if self.frame == self.frames: raise StopIteration
+        if self.frame == self.frames: 
+            self.reset() 
+            raise StopIteration
+        
         pars = {}
 
         if self.frame == 0:
