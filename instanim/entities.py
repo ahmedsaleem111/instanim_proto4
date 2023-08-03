@@ -42,7 +42,7 @@ def setStartKeyFrame(ent, keyFrames, keyFramesFrames, keyFramesCount, **pars):
         else: keyFrames[par] = {'0': default} 
         keyFramesFrames[par] = {'0': 0}
         keyFramesCount[par] = 1
-
+        setattr(ent, par, keyFrames[par]['0'])
 
 
 
@@ -88,6 +88,8 @@ class entity:
 
 
     def __next__(self):
+        print(f"frame: {self.startFrame + self.frame}, buffer: {self.buffer}")
+
         if self.frame == self.frames: 
             self.reset() 
             raise StopIteration
@@ -98,7 +100,7 @@ class entity:
             for par, parKeyFrames in self.keyFrames.items():
                 quantity = parKeyFrames['0']
                 pars[par] = quantity
-                setattr(self, par, quantity)
+                setattr(self, par, quantity) 
 
                 if len(parKeyFrames) > 1: self.buffer[par] = 0 
                 # only setting to buffer if there's more than one key-frame for a par                
@@ -116,17 +118,21 @@ class entity:
                 strBuffer = str(self.buffer[par]) # also referenced a lot, for each par...
                 # essentially buffer index for previous key-frame as a string
 
-                if strFrame in self.keyFrames: # at key-frame
+                if strFrame in parKeyFrames.keys(): # at key-frame
+                    print('key-frame hit')
                     self.buffer[par] += 1 # moving buffer to that next keyFrame ordered index ^
                     
-                    quantity = self.keyFrames[strFrame][0] # value will be value at that key frame        
+                    quantity = parKeyFrames[strFrame][0] # value will be value at that key frame        
 
                 else: # in between key-frames OR after a key-frame (if no next key-frame)
-                    previousKeyFrame = self.keyFramesFrames[strBuffer] # previous key-frame number
-                    previousKeyFrameValue = parKeyFrames[str(previousKeyFrame)][0] # previous value; 0th is value, 1st is method (not needed)
+                    parKeyFramesFrames = self.keyFramesFrames[par]
+                    previousKeyFrame = parKeyFramesFrames[strBuffer] # previous key-frame number
                     
+                    try: previousKeyFrameValue = parKeyFrames[str(previousKeyFrame)][0] # previous value; 0th is value, 1st is method (not needed)
+                    except TypeError: previousKeyFrameValue = parKeyFrames[str(previousKeyFrame)]
+
                     try:
-                        nextKeyFrame = self.keyFramesFrames[str(self.buffer[par] + 1)] # next key-frame number
+                        nextKeyFrame = parKeyFramesFrames[str(self.buffer[par] + 1)] # next key-frame number
                         [nextKeyFrameValue, method] = parKeyFrames[str(nextKeyFrame)]
 
                         quantity = method(previousKeyFrameValue, nextKeyFrameValue, previousKeyFrame, nextKeyFrame, self.frame) # interpolated via method
@@ -166,13 +172,15 @@ class box(entity):
         'borderColor': 'white',
         'borderAlpha': 1,
         'borderWidth': 1,
+        'fill': False,
         'fillColor': 'coral',
         'fillAlpha': 1
     }
 
-    def __init__(self, name, **pars):
-        super().__init__(name)
-        setStartKeyFrame(self, self.keyFrames, **pars)
+    def __init__(self, name, startFrame=0, frames=1, **pars):
+        super().__init__(name, startFrame=startFrame, frames=frames)
+        setStartKeyFrame(self, self.keyFrames, self.keyFramesFrames, self.keyFramesCount, **pars)
+        # will also initialize attributes "pars" to start/default values
 
 
     def draw(self, context): # cairo context
@@ -180,30 +188,26 @@ class box(entity):
 
         bx, by = self.x - self.width/2, self.y - self.height/2
 
+        # Drawing Fill
+        if self.fill is True:
+            context.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+
+            context.set_source_rgba(*dsp.colorAsNumPy(self.fillColor), self.fillAlpha)
+
+            context.rectangle(self.x, self.y, self.width, self.height)
+
+            context.close_path()
+
+            context.fill()
+
         # Drawing Border
         context.set_source_rgba(*dsp.colorAsNumPy(self.borderColor), self.borderAlpha)
         context.set_line_width(self.borderWidth)
 
-        context.line_to(bx, by)
-        context.move_to(bx + self.width, by)
-        context.move_to(bx + self.width, by + self.height)
-        context.move_to(bx, by + self.height)
+        context.rectangle(self.x, self.y, self.width, self.height)
+
         context.close_path()
-
-        # Drawing Fill
-        context.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
-
-        context.set_source_rgba(*dsp.colorAsNumPy(self.fillColor), self.fillAlpha)
-
-        context.line_to(bx, by)
-        context.move_to(bx + self.width, by)
-        context.move_to(bx + self.width, by + self.height)
-        context.move_to(bx, by + self.height)
-        context.close_path()
-
-        context.fill()
-
-
+        context.stroke()
 
 
 
@@ -284,12 +288,3 @@ class box(entity):
 #         surface.write_to_png('text.png')
 
 
-
-if __name__ == "__main__":
-
-    d = {'0':1, '1':2, '2':3, '3':4, '4':5}
-
-    keys = list(d.keys())
-    for k, i in enumerate(keys):
-        d[str(k+5)] = k+6
-        print(d)
