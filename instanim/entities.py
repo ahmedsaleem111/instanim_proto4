@@ -2,7 +2,6 @@ from instanim import *
 import instanim.utilities.displays as dsp
 
 
-
 # interpretation of frames such that for say a given fps, there are "fps" many
 # frames distributed event in that interval
 
